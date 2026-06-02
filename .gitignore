@@ -1,0 +1,27 @@
+# Virtual environment
+venv/
+__pycache__/
+.pytest_cache/
+
+# Data and logs
+*.json
+*.jsonl
+*.csv
+*.log
+*.gz
+*.zip
+*.pptx
+
+# Regenerable auditor reports (run: venv/bin/python3 auditor/falco_rule_auditor.py falco/rules.d/ --format html -o audit_report.html)
+/audit_report.html
+/upstream_audit_report.html
+
+# Local environment and archives
+archive/*
+!archive/.gitkeep
+!archive/README.md
+!archive/**/README.md
+
+results/*
+!results/.gitkeep
+!results/runs/.gitkeep

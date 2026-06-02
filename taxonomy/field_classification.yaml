@@ -1,0 +1,83 @@
+# Field-to-anchor mapping for the Falco rules in this repository.
+#
+# The values below are intentionally simple scalar labels so the future
+# auditor can load this file directly as a mapping.
+#
+# "metadata" is a bookkeeping label for scope, allowlisting, and output
+# enrichment. It is not one of the four anchor classes.
+#
+# Note: the bare Falco token `container` is intentionally not listed here.
+# It is a non-dotted shorthand used to scope events to containers rather than
+# an anchor-bearing field in the taxonomy.
+
+# Syscall-anchored fields.
+# These values come from the kernel event or from kernel-derived object type
+# information attached to that event.
+evt.type: syscall-anchored
+evt.num: syscall-anchored
+evt.res: syscall-anchored
+evt.rawres: syscall-anchored
+evt.arg.request: syscall-anchored
+evt.arg.flags: syscall-anchored
+evt.arg.domain: syscall-anchored
+evt.is_open_write: syscall-anchored
+evt.is_open_read: syscall-anchored
+fd.type: syscall-anchored
+fd.typechar: syscall-anchored
+fd.num: syscall-anchored
+fd.l4proto: syscall-anchored
+fd.ip: syscall-anchored
+fd.net: syscall-anchored
+fd.snet: syscall-anchored
+fd.sport: syscall-anchored
+fd.lport: syscall-anchored
+fd.rport: syscall-anchored
+fd.connected: syscall-anchored
+fd.name_changed: syscall-anchored
+thread.cap_effective: syscall-anchored
+proc.is_exe_upper_layer: syscall-anchored
+proc.is_exe_from_memfd: syscall-anchored
+
+# Mount-anchored fields.
+# These values come from container runtime mount metadata captured at
+# container creation time.
+container.mounts: mount-anchored
+
+# Path-anchored fields.
+# These values depend on the pathname string used by the process and are
+# therefore sensitive to symlinks, fd aliases, and alternate mount paths.
+fd.name: path-anchored
+fd.nameraw: path-anchored
+fd.filename: path-anchored
+fd.directory: path-anchored
+fd.sip.name: path-anchored
+evt.arg.target: path-anchored
+evt.arg.oldpath: path-anchored
+proc.cwd: path-anchored
+
+# Name-anchored fields.
+# These values depend on the process identity string that userspace presents.
+proc.name: name-anchored
+proc.aname: name-anchored
+proc.exe: name-anchored
+proc.exepath: name-anchored
+proc.pexe: name-anchored
+proc.cmdline: name-anchored
+proc.pcmdline: name-anchored
+proc.pname: name-anchored
+proc.sname: name-anchored
+proc.args: name-anchored
+
+# Metadata and context fields.
+# These scope alerts, suppress benign workloads, or enrich output, but they do
+# not determine the detection anchor.
+container.id: metadata
+container.name: metadata
+container.image.repository: metadata
+container.privileged: metadata
+proc.pid: metadata
+proc.ppid: metadata
+proc.duration: metadata
+proc.tty: metadata
+user.name: metadata
+user.uid: metadata

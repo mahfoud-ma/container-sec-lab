@@ -1,0 +1,48 @@
+---
+# Detect namespace manipulation inside containers (setns/unshare/nsenter).
+
+- required_engine_version: 12
+
+- rule: Container Calling setns Syscall
+  desc: setns syscall called inside a container
+  condition: >
+    container and
+    (evt.type=setns or
+     (evt.type=syscall and evt.arg.request=setns))
+  output: >
+    setns in container
+    (user=%user.name cmd=%proc.cmdline container_id=%container.id
+     pid=%proc.pid ppid=%proc.ppid)
+  priority: CRITICAL
+  tags: [container, namespaces, escape]
+
+- rule: Container Calling unshare Syscall
+  desc: >
+    unshare syscall called inside a container — creates new namespaces.
+    Hardened rule added after E2 evasion test showed unshare() bypasses the setns rule.
+    Excludes runc init which legitimately calls unshare during container setup.
+  condition: >
+    container and
+    evt.type=unshare and
+    not proc.cmdline startswith "runc:["
+  output: >
+    unshare in container
+    (user=%user.name cmd=%proc.cmdline container_id=%container.id
+     pid=%proc.pid ppid=%proc.ppid)
+  priority: CRITICAL
+  tags: [container, namespaces, escape]
+
+- rule: Container Using nsenter
+  desc: nsenter tool executed inside a container
+  condition: >
+    container and
+    evt.type in (execve, execveat) and
+    (proc.name=nsenter or
+     proc.cmdline contains "nsenter" or
+     proc.exepath endswith "/nsenter")
+  output: >
+    nsenter executed in container
+    (user=%user.name cmd=%proc.cmdline container_id=%container.id
+     exepath=%proc.exepath)
+  priority: CRITICAL
+  tags: [container, namespaces, escape, tools]

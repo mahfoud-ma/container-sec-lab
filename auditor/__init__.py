@@ -1,0 +1,2 @@
+"""Falco rule auditor package."""
+

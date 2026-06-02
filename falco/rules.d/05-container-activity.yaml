@@ -1,0 +1,71 @@
+---
+# General container activity detection rules
+- required_engine_version: 12
+
+- rule: Container Process Spawned
+  desc: Detect any new process spawned in a container
+  condition: >
+    evt.type in (execve, execveat) and
+    container.id != host
+  output: >
+    Process spawned in container (user=%user.name cmd=%proc.cmdline pid=%proc.pid container=%container.name
+    image=%container.image.repository)
+  priority: NOTICE
+  tags: [container, process]
+
+- rule: Container File Activity
+  desc: Detect file writes in containers
+  condition: >
+    evt.type in (open, openat, openat2, creat) and
+    evt.is_open_write=true and
+    container.id != host and
+    fd.typechar='f' and
+    not fd.directory in (/tmp, /var/tmp, /dev/shm) and
+    not container.name contains "postgres" and
+    not container.name in (falcosidekick, falcosidekick-ui, falcosidekick-ui-redis)
+  output: >
+    File write in container (user=%user.name cmd=%proc.cmdline file=%fd.name container=%container.name)
+  priority: INFO
+  tags: [container, file]
+
+- rule: Container Network Connection
+  desc: Detect network connections initiated from containers
+  condition: >
+    evt.type = connect and
+    container.id != host and
+    fd.type in (ipv4, ipv6) and
+    not container.name in (falcosidekick, falcosidekick-ui)
+  output: >
+    Container network activity (user=%user.name cmd=%proc.cmdline container=%container.name
+    fd=%fd.name proto=%fd.type)
+  priority: INFORMATIONAL
+  tags: [container, network]
+
+- rule: Container Reading Sensitive Paths
+  desc: Detect containers reading sensitive system files
+  condition: >
+    evt.type in (open, openat, openat2) and
+    evt.is_open_read=true and
+    container.id != host and
+    not container.name contains "postgres" and
+    not container.name in (falcosidekick, falcosidekick-ui, falcosidekick-ui-redis) and
+    (fd.name in (/etc/passwd, /etc/shadow, /etc/group, /etc/sudoers) or
+     fd.name startswith /etc/ssh/ or
+     fd.name startswith /root/.ssh/ or
+     fd.name = /etc/localtime)
+  output: >
+    Container accessing sensitive path (user=%user.name cmd=%proc.cmdline file=%fd.name
+    container=%container.name)
+  priority: WARNING
+  tags: [container, file, sensitive]
+
+- rule: Container Using System Tools
+  desc: Detect containers using system administration tools
+  condition: >
+    evt.type in (execve, execveat) and
+    container.id != host and
+    proc.name in (bash, sh, ash, dash, zsh, ksh, csh, tcsh, busybox, nc, netcat, ncat, socat, curl, wget, chmod, chown, mount, umount, sudo)
+  output: >
+    System tool executed in container (user=%user.name tool=%proc.name cmd=%proc.cmdline container=%container.name)
+  priority: INFO
+  tags: [container, tools]

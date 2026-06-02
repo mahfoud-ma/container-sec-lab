@@ -1,0 +1,143 @@
+# Detection anchor classes used by the taxonomy.
+# These are the four anchor-bearing classes. The separate "metadata" label
+# used in field_classification.yaml is intentionally not an anchor class.
+
+- class: syscall-anchored
+  description: Rule condition depends on a kernel-observed syscall or syscall-derived attribute.
+  evasion_resistance: high
+  what_attacker_controls: The attacker can choose whether to perform the action, but cannot spoof the observed syscall field once the event occurs.
+  bypassed_by: []
+  example_fields:
+    - evt.type
+    - evt.arg.request
+    - evt.is_open_write
+    - evt.is_open_read
+    - fd.type
+    - fd.typechar
+  example_values:
+    - setns
+    - unshare
+    - connect
+    - unix
+  # Hardening metadata — used by auditor report
+  hardening:
+    strengths:
+      - Kernel-observed — attacker cannot spoof the syscall number after the event occurs
+      - Covers all variants of the same operation regardless of binary, path, or wrapper
+    limitations:
+      - Cannot distinguish benign vs malicious invocations of the same syscall
+      - Broad syscalls (e.g. connect, open) may require additional context fields to reduce noise
+    coverage_notes: >
+      Detects the operation itself. Does not reveal the target resource (which file, which socket).
+      Pair with metadata or mount-anchored fields for target context.
+
+- class: mount-anchored
+  description: Rule condition checks container mount metadata populated by the runtime at container creation time.
+  evasion_resistance: high
+  what_attacker_controls: The attacker can choose what to do after the container starts, but cannot rewrite the container's mount table from inside the container.
+  bypassed_by: []
+  example_fields:
+    - container.mounts
+  example_values:
+    - docker.sock
+    - /:
+  hardening:
+    strengths:
+      - Immutable from inside the container — set at creation time by the runtime
+      - Detects the capability (dangerous mount exists) rather than a specific access path
+    limitations:
+      - Detects capability, not action — alerts on container start even if the mount is never used
+      - Cannot distinguish read vs write access to the mounted resource
+      - Only available for container events — not applicable to host-level rules
+    coverage_notes: >
+      Detects that a dangerous mount exists. Does not reveal what the process actually
+      did with the mount. Pair with syscall-anchored fields (evt.type, evt.is_open_write)
+      to scope the alert to specific operations.
+
+- class: path-anchored
+  description: Rule condition matches on the pathname string Falco observed for a file or directory access.
+  evasion_resistance: low
+  what_attacker_controls: The access path string passed through userspace, including symlink names, alternate mount destinations, and descriptor aliases.
+  bypassed_by:
+    - symlink
+    - fd_redirection
+    - proc_self_fd_alias
+    - alternative_mount_path
+  example_fields:
+    - fd.name
+    - fd.directory
+  example_values:
+    - /var/run/docker.sock
+    - /host/
+    - /tmp/host_mount
+  hardening:
+    strengths:
+      - Precise target identification — shows exactly which file or directory was accessed
+      - Low false-positive rate when the expected path is stable
+    limitations:
+      - Attacker controls the access path via symlinks, /proc/self/fd, or alternate mount points
+      - Falco (libsinsp) does not resolve symlinks — reports the path used, not the resolved target
+      - Requires hardcoding every possible path variant, which is brittle
+    coverage_notes: >
+      Detects access to a specific pathname string. Misses the same target accessed
+      through any alternate path. Consider adding a mount-anchored companion rule
+      to cover the underlying capability.
+    upgrade_to:
+      - field: container.mounts
+        anchor_class: mount-anchored
+        resistance: HIGH
+        tradeoff: Loses path specificity — alerts on capability (mount exists) rather than specific file access
+        example_before: "fd.name contains /var/run/docker.sock"
+        example_after: "container.mounts contains docker.sock"
+      - field: evt.type
+        anchor_class: syscall-anchored
+        resistance: HIGH
+        tradeoff: Loses target specificity — fires on all instances of the syscall, not just the target path
+        example_before: "fd.name startswith /host/"
+        example_after: "evt.type in (open, openat) and evt.is_open_write=true"
+
+- class: name-anchored
+  description: Rule condition matches on process name, executable path, or command line strings.
+  evasion_resistance: low
+  what_attacker_controls: Binary name, executable location, wrapper script name, and command line content.
+  bypassed_by:
+    - binary_rename
+    - custom_binary
+    - static_compilation
+    - alternative_tool
+    - cmdline_obfuscation
+  example_fields:
+    - proc.name
+    - proc.exepath
+    - proc.cmdline
+    - proc.pname
+    - proc.args
+  example_values:
+    - nsenter
+    - docker
+    - curl
+  hardening:
+    strengths:
+      - Human-readable — easy to understand which tool triggered the alert
+      - Useful for allowlisting known-good processes (filter-only role)
+    limitations:
+      - Trivially bypassed by renaming the binary (cp nsenter /tmp/x && /tmp/x)
+      - Custom-compiled binaries have arbitrary names
+      - Substring matching (contains "nsenter") defeated by names that do not contain the substring
+    coverage_notes: >
+      Detects a specific tool by name. Misses the same operation performed by any
+      differently-named binary. Consider adding a syscall-anchored companion rule
+      to detect the underlying kernel operation.
+    upgrade_to:
+      - field: evt.type
+        anchor_class: syscall-anchored
+        resistance: HIGH
+        tradeoff: Loses tool identity — fires on all processes making the syscall, not just the named tool
+        example_before: "proc.name = nsenter"
+        example_after: "evt.type = setns"
+      - field: proc.is_exe_upper_layer
+        anchor_class: syscall-anchored
+        resistance: HIGH
+        tradeoff: Only detects binaries written into the container after image build — misses pre-installed tools
+        example_before: "proc.name in (curl, wget)"
+        example_after: "proc.is_exe_upper_layer = true"

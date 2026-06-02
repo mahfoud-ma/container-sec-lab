@@ -1,0 +1,46 @@
+services:
+  workload-web:
+    image: nginx:alpine
+    container_name: workload-web
+    ports:
+      - "8098:80"
+    restart: "no"
+
+  workload-db:
+    image: postgres:15-alpine
+    container_name: workload-db
+    environment:
+      - POSTGRES_PASSWORD=workload_test
+    ports:
+      - "5498:5432"
+    restart: "no"
+
+  workload-builder:
+    image: ubuntu:22.04
+    container_name: workload-builder
+    restart: "no"
+    command: >
+      bash -lc "
+        apt-get update -qq > /dev/null 2>&1;
+        while true; do
+          find / -maxdepth 4 -type f 2>/dev/null | wc -l > /dev/null;
+          dd if=/dev/urandom of=/tmp/build_artifact bs=1K count=64 2>/dev/null;
+          rm -f /tmp/build_artifact;
+          sleep 2;
+        done
+      "
+
+  workload-net:
+    image: alpine:latest
+    container_name: workload-net
+    restart: "no"
+    command: >
+      sh -c "
+        apk add --no-cache wget > /dev/null 2>&1;
+        while true; do
+          wget -q -O /dev/null http://workload-web/ 2>/dev/null || true;
+          sleep 3;
+        done
+      "
+    depends_on:
+      - workload-web

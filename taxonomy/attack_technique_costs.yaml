@@ -1,0 +1,120 @@
+# Lightweight attacker-cost model for the discussion section.
+#
+# This is an ordinal model, not a claim of exact attacker time-on-task.
+# Scores are derived from coarse effort/skill/prerequisite buckets so the
+# we can compare "cheap evasions" against stronger anchors consistently.
+
+- technique: binary_rename
+  label: Binary rename
+  anchor_classes:
+    - name-anchored
+  effort_minutes: 5
+  skill_level: 1
+  prerequisite_level: 1
+  operational_change_level: 1
+  evidence: observed
+  experiment_refs:
+    - E1
+  description: Copy or rename the existing tool so proc.name and proc.exepath no longer match.
+
+- technique: cmdline_obfuscation
+  label: Cmdline obfuscation
+  anchor_classes:
+    - name-anchored
+  effort_minutes: 10
+  skill_level: 1
+  prerequisite_level: 1
+  operational_change_level: 1
+  evidence: reasoned
+  experiment_refs: []
+  description: Change shell wrappers, variables, or invocation strings so proc.cmdline matching becomes unreliable.
+
+- technique: alternative_tool
+  label: Alternative tool
+  anchor_classes:
+    - name-anchored
+  effort_minutes: 10
+  skill_level: 1
+  prerequisite_level: 1
+  operational_change_level: 2
+  evidence: observed
+  experiment_refs:
+    - E2
+  description: Replace the named tool with another utility that reaches the same objective through a different binary identity.
+
+- technique: symlink
+  label: Symlink alias
+  anchor_classes:
+    - path-anchored
+  effort_minutes: 5
+  skill_level: 1
+  prerequisite_level: 1
+  operational_change_level: 1
+  evidence: observed
+  experiment_refs:
+    - E3a
+    - E4
+  description: Access the same target through an alternate symlink path so fd.name and fd.directory no longer match the hardcoded string.
+
+- technique: alternative_mount_path
+  label: Alternate mount path
+  anchor_classes:
+    - path-anchored
+  effort_minutes: 5
+  skill_level: 1
+  prerequisite_level: 3
+  operational_change_level: 2
+  evidence: reasoned
+  experiment_refs: []
+  description: Launch the container with the dangerous mount exposed at a different in-container path.
+
+- technique: fd_redirection
+  label: FD redirection
+  anchor_classes:
+    - path-anchored
+  effort_minutes: 15
+  skill_level: 2
+  prerequisite_level: 1
+  operational_change_level: 2
+  evidence: observed
+  experiment_refs:
+    - E3b
+  description: Open the object via an alternate path and interact through the inherited descriptor instead of the original pathname.
+
+- technique: proc_self_fd_alias
+  label: /proc/self/fd alias
+  anchor_classes:
+    - path-anchored
+  effort_minutes: 15
+  skill_level: 2
+  prerequisite_level: 1
+  operational_change_level: 2
+  evidence: reasoned
+  experiment_refs: []
+  description: Reuse an already-open descriptor through /proc/self/fd or /dev/fd so the visible access path changes.
+
+- technique: custom_binary
+  label: Custom binary
+  anchor_classes:
+    - name-anchored
+  effort_minutes: 30
+  skill_level: 2
+  prerequisite_level: 2
+  operational_change_level: 2
+  evidence: observed
+  experiment_refs:
+    - E1b
+  description: Use a purpose-built helper with no matching proc.name or proc.cmdline signatures.
+
+- technique: static_compilation
+  label: Static compilation
+  anchor_classes:
+    - name-anchored
+  effort_minutes: 45
+  skill_level: 3
+  prerequisite_level: 2
+  operational_change_level: 2
+  evidence: reasoned
+  experiment_refs: []
+  description: Rebuild or statically compile the payload so both the binary identity and runtime strings diverge from the expected tool.
+

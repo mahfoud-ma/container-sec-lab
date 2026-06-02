@@ -1,0 +1,60 @@
+---
+- required_engine_version: 12
+
+- rule: Container Docker Socket Access
+  desc: >
+    Detect containers accessing Docker socket via file ops, Unix socket connections,
+    or docker commands. Hardened after E3: also matches fd.name=/var/run/docker.sock
+    (exact) and connect to any Unix socket path containing docker.sock.
+    NOTE: This rule is path-based and can be bypassed by symlink or fd redirection
+    (E3 confirmed 0/5 evasion-specific detection). Retained for defence-in-depth;
+    see "Container With Docker Socket Mounted" for the evasion-resistant rule.
+  condition: >
+    container.id != host and
+    (
+      (evt.type in (execve, execveat) and proc.name = nc and proc.args contains "/var/run/docker.sock") or
+      (evt.type in (execve, execveat) and proc.name = docker and not proc.pname in (dockerd, docker-proxy, containerd)) or
+      (evt.type in (execve, execveat) and proc.cmdline contains "docker.sock") or
+      (evt.type in (execve, execveat) and proc.name in (curl, wget, socat) and proc.args contains "docker.sock") or
+      (evt.type in (open, openat, openat2) and fd.name contains "docker.sock") or
+      (evt.type = connect and fd.name contains "docker.sock") or
+      (evt.type in (open, openat, openat2) and fd.name = /var/run/docker.sock)
+    )
+  output: >
+    Docker socket access from container (user=%user.name cmd=%proc.cmdline pid=%proc.pid container=%container.name image=%container.image.repository evt=%evt.type fd=%fd.name)
+  priority: CRITICAL
+  tags: [container, docker, escape]
+
+- rule: Container Unix Socket Connection
+  desc: >
+    Detect container connecting to ANY Unix domain socket.
+    Supplementary Layer 2 rule added after E3 showed symlink and fd redirection
+    can bypass the path-based docker.sock rule. This catches connect() to any
+    Unix socket from a container, which is unusual in normal container workloads.
+    LIMITATION: Only fires on connect() syscall. E3 uses openat/read, not connect,
+    so this rule scores 0/5 against E3. Retained for completeness.
+  condition: >
+    container.id != host and
+    evt.type = connect and
+    fd.type = unix
+  output: >
+    Unix socket connection from container (user=%user.name cmd=%proc.cmdline fd=%fd.name container=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [container, docker, escape, network]
+
+- rule: Container With Docker Socket Mounted
+  desc: >
+    Mount-based detection: fires on process execution inside any container
+    that has docker.sock in its mount table. Immune to symlink, fd redirect,
+    and /proc/self/fd evasion because it checks the mount namespace, not the
+    file access path. Added after E3 proved path-based detection unreliable.
+  condition: >
+    container.id != host and
+    container.mounts contains "docker.sock" and
+    evt.type in (execve, execveat)
+  output: >
+    Process in container with docker.sock mounted
+    (user=%user.name cmd=%proc.cmdline container=%container.name
+     image=%container.image.repository mounts=%container.mounts)
+  priority: CRITICAL
+  tags: [container, docker, escape, mount]

@@ -1,0 +1,51 @@
+---
+# Detect writes to mounted host filesystem (potential container escape).
+
+- required_engine_version: 12
+
+- rule: Container Writing Under Mounted Host Root
+  desc: >
+    Detect writes under /host/* or /tmp when host paths are mounted.
+    NOTE: This rule is path-based and only matches hardcoded prefixes.
+    It was 5/5 in Phase 1 only because S3 happened to mount at
+    /tmp/host_mount_test_* which matched the prefix. Symlink writes (E4)
+    score 0/5, and any non-standard mount path (e.g. -v /:/data) also
+    bypasses it entirely. Retained for defence-in-depth on known paths;
+    see "Container With Host Root Mounted" for the evasion-resistant rule.
+  condition: >
+    container and
+    ((fd.name startswith "/host/" or
+      fd.directory startswith "/host/" or
+      fd.name startswith "/tmp/host_mount" or
+      fd.directory startswith "/tmp/host_mount") and
+     (evt.type in (open, openat, openat2, creat, rename, renameat, renameat2,
+                   link, linkat, unlink, unlinkat, symlink, symlinkat,
+                   mkdir, mkdirat, rmdir) or
+      (evt.type in (open, openat, openat2) and evt.is_open_write=true)))
+  output: >
+    Container wrote to mounted host path
+    (user=%user.name cmd=%proc.cmdline file=%fd.name
+     container_id=%container.id evt_type=%evt.type)
+  priority: CRITICAL
+  tags: [container, escape, filesystem, hostmount]
+
+- rule: Container With Host Root Mounted
+  desc: >
+    Mount-based detection: fires on write-open syscalls inside any container
+    that has the host root filesystem (/) as a mount source. Uses the
+    container.mounts field pattern "/:" to identify host-root mounts.
+    Path-agnostic — works regardless of destination path inside the container.
+    Immune to symlink evasion because it checks mount table, not fd.name.
+    Added after E4 proved path-based detection unreliable.
+  condition: >
+    container and
+    container.mounts contains "/:" and
+    evt.type in (open, openat, openat2) and
+    evt.is_open_write = true
+  output: >
+    Write in container with host root mounted
+    (user=%user.name cmd=%proc.cmdline file=%fd.name
+     container_id=%container.id container=%container.name
+     image=%container.image.repository)
+  priority: CRITICAL
+  tags: [container, escape, filesystem, hostmount, mount]

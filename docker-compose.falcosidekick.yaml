@@ -1,0 +1,40 @@
+# Falcosidekick + Falcosidekick-UI
+# Usage:
+#   docker compose -f docker-compose.falcosidekick.yml up -d
+#   Start Falco with: -o http_output.enabled=true -o http_output.url=http://localhost:2801
+#   UI: http://localhost:2802/ui
+
+services:
+  falcosidekick:
+    image: falcosecurity/falcosidekick:latest
+    container_name: falcosidekick
+    restart: "no"
+    network_mode: host
+    environment:
+      # Send events to the UI backend listening on host
+      - WEBUI_URL=http://localhost:2802
+      - WEBUI_MAXCONCURRENTREQUESTS=500
+      # Forward only Warning+ to the UI — drops Info/Notice flood that
+      # otherwise hits the UI's internal rate limit during demo bursts.
+      - WEBUI_MINIMUMPRIORITY=warning
+
+  falcosidekick-ui:
+    image: falcosecurity/falcosidekick-ui:latest
+    container_name: falcosidekick-ui
+    restart: "no"
+    network_mode: host
+    environment:
+      - FALCOSIDEKICK_UI_REDIS_URL=localhost:6379
+      - FALCOSIDEKICK_UI_DISABLEAUTH=true
+    depends_on:
+      - falcosidekick-ui-redis
+
+  falcosidekick-ui-redis:
+    image: redis/redis-stack-server:latest
+    container_name: falcosidekick-ui-redis
+    restart: "no"
+    network_mode: host
+    environment:
+      - REDIS_ARGS=--save "" --appendonly no
+    tmpfs:
+      - /data
